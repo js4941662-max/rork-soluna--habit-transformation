@@ -5,12 +5,10 @@
   "scripts": {
     "start": "expo start",
     "start-web": "expo start --web",
-    "start-web-dev": "DEBUG=expo* expo start --web",
     "lint": "expo lint"
   },
   "dependencies": {
     "@expo/vector-icons": "^14.1.0",
-    "@nkzw/create-context-hook": "^1.1.0",
     "@react-native-async-storage/async-storage": "2.1.2",
     "@react-navigation/native": "^7.1.6",
     "@tanstack/react-query": "^5.83.0",
@@ -47,19 +45,10 @@
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
-    "@expo/ngrok": "^4.1.0",
     "@types/react": "~19.0.10",
     "eslint": "^9.31.0",
     "eslint-config-expo": "^9.2.0",
     "typescript": "~5.8.3"
-  },
-  "resolutions": {
-    "ajv": "^8.12.0",
-    "ajv-keywords": "^5.1.0"
-  },
-  "overrides": {
-    "ajv": "^8.12.0",
-    "ajv-keywords": "^5.1.0"
   },
   "private": true
 }
