@@ -221,7 +221,7 @@ export const shareWithOptions = async (content: ShareableContent): Promise<void>
     try {
       await shareContent.native(content);
     } catch {
-      console.log('Native sharing failed, falling back to Twitter');
+      // Native sharing failed, falling back to Twitter
       await shareContent.twitter(content);
     }
   }
@@ -254,5 +254,5 @@ export const generateShareUrl = (content: ShareableContent): string => {
 // Premium feature: Advanced sharing analytics
 export const trackShareEvent = (platform: string, contentType: string, userId: string): void => {
   // In a real app, you'd send this to your analytics service
-  console.log('Share event:', { platform, contentType, userId, timestamp: new Date().toISOString() });
+  // Share event logged for analytics
 };

@@ -1,0 +1,33 @@
+{
+  "cli": {
+    "version": ">= 16.18.0"
+  },
+  "build": {
+    "development": {
+      "ios": {
+        "simulator": true,
+        "autoIncrement": "buildNumber"
+      },
+      "env": {
+        "NODE_ENV": "development"
+      }
+    },
+    "production": {
+      "ios": {
+        "simulator": false,
+        "autoIncrement": "buildNumber"
+      },
+      "env": {
+        "NODE_ENV": "production"
+      }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "abrahamtrueba@icloud.com",
+        "bundleIdentifier": "app.rork.soluna-habit-transformation"
+      }
+    }
+  }
+}

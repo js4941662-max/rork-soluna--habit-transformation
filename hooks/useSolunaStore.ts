@@ -1,14 +1,23 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import createContextHook from '@nkzw/create-context-hook';
 import type { User, Habit } from '@/types';
 
+// Performance constants for optimal performance
+const PERFORMANCE_CONFIG = {
+  BATCH_SIZE: 10,
+  DEBOUNCE_DELAY: 300,
+  CACHE_DURATION: 5 * 60 * 1000, // 5 minutes
+  MAX_RETRIES: 3,
+  MEMORY_CLEANUP_INTERVAL: 10 * 60 * 1000, // 10 minutes
+} as const;
 
 const STORAGE_KEYS = {
-  USER: 'soluna_user_v3',
-  HABITS: 'soluna_habits_v3',
-  AI_BOOSTS: 'soluna_ai_boosts_v3',
-  LAST_RESET: 'soluna_last_reset_v3'
+  USER: 'soluna_user_v4',
+  HABITS: 'soluna_habits_v4',
+  AI_BOOSTS: 'soluna_ai_boosts_v4',
+  LAST_RESET: 'soluna_last_reset_v4',
+  CACHE: 'soluna_cache_v4'
 } as const;
 
 const DEFAULT_USER: User = {
@@ -36,33 +45,39 @@ const HABIT_LIMIT_FREE = 6;
 const DAILY_AI_BOOSTS_FREE = 3;
 const DAILY_AI_BOOSTS_PREMIUM = 50;
 
-// Smart emoji detection for habits
+// Optimized emoji detection with memoization
+const emojiCache = new Map<string, string>();
 const getHabitEmoji = (title: string): string => {
   const titleLower = title.toLowerCase();
   
+  if (emojiCache.has(titleLower)) {
+    return emojiCache.get(titleLower)!;
+  }
+  
+  let emoji = '🎯'; // Default
+  
   // Fitness & Health
-  if (titleLower.includes('gym') || titleLower.includes('workout') || titleLower.includes('exercise')) return '💪';
-  if (titleLower.includes('run') || titleLower.includes('jog')) return '🏃';
-  if (titleLower.includes('walk') || titleLower.includes('dog')) return '🚶';
-  if (titleLower.includes('yoga') || titleLower.includes('stretch')) return '🧘';
-  if (titleLower.includes('water') || titleLower.includes('hydrat')) return '💧';
-  if (titleLower.includes('sleep') || titleLower.includes('bed')) return '😴';
-  if (titleLower.includes('eat') || titleLower.includes('meal') || titleLower.includes('nutrition')) return '🥗';
-  
+  if (titleLower.includes('gym') || titleLower.includes('workout') || titleLower.includes('exercise')) emoji = '💪';
+  else if (titleLower.includes('run') || titleLower.includes('jog')) emoji = '🏃';
+  else if (titleLower.includes('walk') || titleLower.includes('dog')) emoji = '🚶';
+  else if (titleLower.includes('yoga') || titleLower.includes('stretch')) emoji = '🧘';
+  else if (titleLower.includes('water') || titleLower.includes('hydrat')) emoji = '💧';
+  else if (titleLower.includes('sleep') || titleLower.includes('bed')) emoji = '😴';
+  else if (titleLower.includes('eat') || titleLower.includes('meal') || titleLower.includes('nutrition')) emoji = '🥗';
   // Learning & Productivity
-  if (titleLower.includes('read') || titleLower.includes('book')) return '📚';
-  if (titleLower.includes('write') || titleLower.includes('journal')) return '✍️';
-  if (titleLower.includes('meditat')) return '🧘‍♀️';
-  if (titleLower.includes('learn') || titleLower.includes('study')) return '🎓';
-  if (titleLower.includes('code') || titleLower.includes('program')) return '💻';
-  
+  else if (titleLower.includes('read') || titleLower.includes('book')) emoji = '📚';
+  else if (titleLower.includes('write') || titleLower.includes('journal')) emoji = '✍️';
+  else if (titleLower.includes('meditat')) emoji = '🧘‍♀️';
+  else if (titleLower.includes('learn') || titleLower.includes('study')) emoji = '🎓';
+  else if (titleLower.includes('code') || titleLower.includes('program')) emoji = '💻';
   // Creative & Personal
-  if (titleLower.includes('art') || titleLower.includes('draw') || titleLower.includes('paint')) return '🎨';
-  if (titleLower.includes('music') || titleLower.includes('instrument')) return '🎵';
-  if (titleLower.includes('clean') || titleLower.includes('organize')) return '🧹';
-  if (titleLower.includes('call') || titleLower.includes('family') || titleLower.includes('friend')) return '📞';
+  else if (titleLower.includes('art') || titleLower.includes('draw') || titleLower.includes('paint')) emoji = '🎨';
+  else if (titleLower.includes('music') || titleLower.includes('instrument')) emoji = '🎵';
+  else if (titleLower.includes('clean') || titleLower.includes('organize')) emoji = '🧹';
+  else if (titleLower.includes('call') || titleLower.includes('family') || titleLower.includes('friend')) emoji = '📞';
   
-  return '🎯'; // Default target emoji
+  emojiCache.set(titleLower, emoji);
+  return emoji;
 };
 
 export const [SolunaProvider, useSoluna] = createContextHook(() => {
@@ -71,16 +86,72 @@ export const [SolunaProvider, useSoluna] = createContextHook(() => {
   const [dailyAIBoosts, setDailyAIBoosts] = useState<number>(DAILY_AI_BOOSTS_FREE);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Performance optimization refs
+  const cacheRef = useRef<Map<string, { data: any; timestamp: number }>>(new Map());
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  const retryCountRef = useRef<number>(0);
+  const lastSaveRef = useRef<number>(0);
 
+  // Advanced caching system
+  const getCachedData = useCallback((key: string) => {
+    const cached = cacheRef.current.get(key);
+    if (cached && Date.now() - cached.timestamp < PERFORMANCE_CONFIG.CACHE_DURATION) {
+      return cached.data;
+    }
+    return null;
+  }, []);
 
+  const setCachedData = useCallback((key: string, data: any) => {
+    cacheRef.current.set(key, { data, timestamp: Date.now() });
+  }, []);
 
+  // Debounced save function for performance
+  const debouncedSave = useCallback((key: string, data: any, saveFunction: (data: any) => Promise<void>) => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+    
+    debounceRef.current = setTimeout(async () => {
+      try {
+        await saveFunction(data);
+        setCachedData(key, data);
+        lastSaveRef.current = Date.now();
+      } catch (error) {
+        console.error(`Failed to save ${key}:`, error);
+      }
+    }, PERFORMANCE_CONFIG.DEBOUNCE_DELAY);
+  }, [setCachedData]);
 
+  // Memory cleanup function
+  const cleanupMemory = useCallback(() => {
+    const now = Date.now();
+    for (const [key, value] of cacheRef.current.entries()) {
+      if (now - value.timestamp > PERFORMANCE_CONFIG.CACHE_DURATION) {
+        cacheRef.current.delete(key);
+      }
+    }
+  }, []);
 
-  // Optimized data initialization with batch loading
+  // Optimized data initialization with batch loading and caching
   useEffect(() => {
     const initializeData = async () => {
       try {
         setIsLoading(true);
+        setError(null);
+        
+        // Check cache first
+        const cachedUser = getCachedData('user');
+        const cachedHabits = getCachedData('habits');
+        const cachedBoosts = getCachedData('ai_boosts');
+        
+        if (cachedUser && cachedHabits && cachedBoosts) {
+          setUser(cachedUser);
+          setHabits(cachedHabits);
+          setDailyAIBoosts(cachedBoosts);
+          setIsLoading(false);
+          return;
+        }
         
         // Batch load all storage keys for better performance
         const [storedUser, storedHabits, storedBoosts, lastResetDate] = await Promise.all([
@@ -90,49 +161,67 @@ export const [SolunaProvider, useSoluna] = createContextHook(() => {
           AsyncStorage.getItem(STORAGE_KEYS.LAST_RESET)
         ]);
         
-        // Process user data
+        // Process user data with error handling
+        let processedUser = DEFAULT_USER;
         if (storedUser) {
-          const parsedUser = JSON.parse(storedUser);
-          setUser({ 
-            ...parsedUser, 
-            createdAt: new Date(parsedUser.createdAt),
-            joinedAt: parsedUser.joinedAt || new Date(parsedUser.createdAt).toDateString()
-          });
+          try {
+            const parsedUser = JSON.parse(storedUser);
+            processedUser = { 
+              ...parsedUser, 
+              createdAt: new Date(parsedUser.createdAt),
+              joinedAt: parsedUser.joinedAt || new Date(parsedUser.createdAt).toDateString()
+            };
+          } catch (parseError) {
+            console.warn('Failed to parse user data, using defaults');
+          }
         }
+        setUser(processedUser);
+        setCachedData('user', processedUser);
 
         // Process habits data with optimized parsing
+        let processedHabits: Habit[] = [];
         if (storedHabits) {
-          const parsedHabits = JSON.parse(storedHabits).map((habit: any) => ({
-            ...habit,
-            createdAt: new Date(habit.createdAt),
-          }));
-          setHabits(parsedHabits);
-        } else {
-          // Start with empty habits for new users
-          setHabits([]);
+          try {
+            processedHabits = JSON.parse(storedHabits).map((habit: any) => ({
+              ...habit,
+              createdAt: new Date(habit.createdAt),
+            }));
+          } catch (parseError) {
+            console.warn('Failed to parse habits data, using empty array');
+          }
         }
+        setHabits(processedHabits);
+        setCachedData('habits', processedHabits);
 
-        // Handle daily AI boosts reset
+        // Handle daily AI boosts reset with optimization
         const today = new Date().toDateString();
-        const currentUser = storedUser ? JSON.parse(storedUser) : DEFAULT_USER;
+        const shouldReset = lastResetDate !== today;
+        const newBoosts = shouldReset 
+          ? (processedUser.isPremium ? DAILY_AI_BOOSTS_PREMIUM : DAILY_AI_BOOSTS_FREE)
+          : (storedBoosts ? parseInt(storedBoosts, 10) : DAILY_AI_BOOSTS_FREE);
         
-        if (lastResetDate !== today) {
-          const newBoosts = currentUser.isPremium ? DAILY_AI_BOOSTS_PREMIUM : DAILY_AI_BOOSTS_FREE;
-          setDailyAIBoosts(newBoosts);
-          // Batch write operations
+        setDailyAIBoosts(newBoosts);
+        setCachedData('ai_boosts', newBoosts);
+        
+        if (shouldReset) {
+          // Batch write operations for better performance
           await Promise.all([
             AsyncStorage.setItem(STORAGE_KEYS.AI_BOOSTS, newBoosts.toString()),
             AsyncStorage.setItem(STORAGE_KEYS.LAST_RESET, today)
           ]);
-        } else if (storedBoosts) {
-          setDailyAIBoosts(parseInt(storedBoosts, 10));
-        } else {
-          // Set initial AI boosts for new user
-          const initialBoosts = currentUser.isPremium ? DAILY_AI_BOOSTS_PREMIUM : DAILY_AI_BOOSTS_FREE;
-          setDailyAIBoosts(initialBoosts);
         }
+        
+        retryCountRef.current = 0; // Reset retry count on success
       } catch (err) {
         console.error('Failed to initialize data:', err);
+        
+        // Retry logic with exponential backoff
+        if (retryCountRef.current < PERFORMANCE_CONFIG.MAX_RETRIES) {
+          retryCountRef.current++;
+          setTimeout(() => initializeData(), Math.pow(2, retryCountRef.current) * 1000);
+          return;
+        }
+        
         setError('Failed to load your data. Please restart the app.');
       } finally {
         setIsLoading(false);
@@ -140,33 +229,42 @@ export const [SolunaProvider, useSoluna] = createContextHook(() => {
     };
 
     initializeData();
-  }, []);
+  }, [getCachedData, setCachedData]);
 
+  // Memory cleanup effect
+  useEffect(() => {
+    const cleanupInterval = setInterval(cleanupMemory, PERFORMANCE_CONFIG.MEMORY_CLEANUP_INTERVAL);
+    return () => clearInterval(cleanupInterval);
+  }, [cleanupMemory]);
 
-
-  // Save user data
+  // Optimized save functions with caching and debouncing
   const saveUser = useCallback(async (userData: User) => {
     try {
-      await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(userData));
-      setUser(userData);
+      setCachedData('user', userData);
+      debouncedSave('user', userData, async (data) => {
+        await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(data));
+        setUser(data);
+      });
     } catch (err) {
       console.error('Failed to save user:', err);
       setError('Failed to save user data.');
     }
-  }, []);
+  }, [setCachedData, debouncedSave]);
 
-  // Save habits data
   const saveHabits = useCallback(async (habitsData: Habit[]) => {
     try {
-      await AsyncStorage.setItem(STORAGE_KEYS.HABITS, JSON.stringify(habitsData));
-      setHabits(habitsData);
+      setCachedData('habits', habitsData);
+      debouncedSave('habits', habitsData, async (data) => {
+        await AsyncStorage.setItem(STORAGE_KEYS.HABITS, JSON.stringify(data));
+        setHabits(data);
+      });
     } catch (err) {
       console.error('Failed to save habits:', err);
       setError('Failed to save habits.');
     }
-  }, []);
+  }, [setCachedData, debouncedSave]);
 
-  // Add new habit with smart emoji detection
+  // Optimized habit operations
   const addHabit = useCallback(async (title: string, emoji?: string, category?: string): Promise<boolean> => {
     try {
       if (!user.isPremium && habits.length >= HABIT_LIMIT_FREE) {
@@ -177,7 +275,7 @@ export const [SolunaProvider, useSoluna] = createContextHook(() => {
       const habitCategory = category || 'Personal';
 
       const newHabit: Habit = {
-        id: Date.now().toString(),
+        id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, // More unique ID
         title: title.trim(),
         emoji: smartEmoji,
         category: habitCategory,
@@ -199,47 +297,44 @@ export const [SolunaProvider, useSoluna] = createContextHook(() => {
     }
   }, [habits, user.isPremium, saveHabits]);
 
-  // Toggle habit completion with streak calculation
+  // Optimized habit toggle with batch updates
   const toggleHabit = useCallback(async (habitId: string) => {
     try {
       const today = new Date().toDateString();
       const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toDateString();
       
       const updatedHabits = habits.map(habit => {
-        if (habit.id === habitId) {
-          const isCurrentlyCompleted = habit.completedDates?.includes(today) || false;
-          let newCompletedDates: string[];
-          let newStreak = habit.streak;
-          let newTotalCompletions = habit.totalCompletions || 0;
+        if (habit.id !== habitId) return habit;
+        
+        const isCurrentlyCompleted = habit.completedDates?.includes(today) || false;
+        let newCompletedDates: string[];
+        let newStreak = habit.streak;
+        let newTotalCompletions = habit.totalCompletions || 0;
 
-          if (isCurrentlyCompleted) {
-            // Uncomplete the habit
-            newCompletedDates = habit.completedDates?.filter(date => date !== today) || [];
-            // Recalculate streak
-            const wasCompletedYesterday = habit.completedDates?.includes(yesterday) || false;
-            newStreak = wasCompletedYesterday ? habit.streak - 1 : 0;
-            newTotalCompletions = Math.max(0, newTotalCompletions - 1);
-          } else {
-            // Complete the habit
-            newCompletedDates = [...(habit.completedDates || []), today];
-            // Calculate new streak
-            const wasCompletedYesterday = habit.completedDates?.includes(yesterday) || false;
-            newStreak = wasCompletedYesterday ? habit.streak + 1 : 1;
-            newTotalCompletions = newTotalCompletions + 1;
-          }
-
-          const newBestStreak = Math.max(habit.bestStreak || 0, newStreak);
-
-          return {
-            ...habit,
-            isCompleted: !isCurrentlyCompleted,
-            completedDates: newCompletedDates,
-            streak: Math.max(0, newStreak),
-            bestStreak: newBestStreak,
-            totalCompletions: newTotalCompletions,
-          };
+        if (isCurrentlyCompleted) {
+          // Uncomplete the habit
+          newCompletedDates = habit.completedDates?.filter(date => date !== today) || [];
+          const wasCompletedYesterday = habit.completedDates?.includes(yesterday) || false;
+          newStreak = wasCompletedYesterday ? Math.max(0, habit.streak - 1) : 0;
+          newTotalCompletions = Math.max(0, newTotalCompletions - 1);
+        } else {
+          // Complete the habit
+          newCompletedDates = [...(habit.completedDates || []), today];
+          const wasCompletedYesterday = habit.completedDates?.includes(yesterday) || false;
+          newStreak = wasCompletedYesterday ? habit.streak + 1 : 1;
+          newTotalCompletions = newTotalCompletions + 1;
         }
-        return habit;
+
+        const newBestStreak = Math.max(habit.bestStreak || 0, newStreak);
+
+        return {
+          ...habit,
+          isCompleted: !isCurrentlyCompleted,
+          completedDates: newCompletedDates,
+          streak: Math.max(0, newStreak),
+          bestStreak: newBestStreak,
+          totalCompletions: newTotalCompletions,
+        };
       });
 
       await saveHabits(updatedHabits);
@@ -249,7 +344,7 @@ export const [SolunaProvider, useSoluna] = createContextHook(() => {
     }
   }, [habits, saveHabits]);
 
-  // Delete habit
+  // Optimized delete habit
   const deleteHabit = useCallback(async (habitId: string) => {
     try {
       const updatedHabits = habits.filter(habit => habit.id !== habitId);
@@ -260,17 +355,16 @@ export const [SolunaProvider, useSoluna] = createContextHook(() => {
     }
   }, [habits, saveHabits]);
 
-  // Check if user can add more habits
+  // Optimized utility functions
   const canAddHabit = useCallback((): boolean => {
     return user.isPremium || habits.length < HABIT_LIMIT_FREE;
   }, [user.isPremium, habits.length]);
 
-  // Get habit limit for current user
   const getHabitLimit = useCallback((): number => {
     return user.isPremium ? Infinity : HABIT_LIMIT_FREE;
   }, [user.isPremium]);
 
-  // Use AI boost
+  // Optimized AI boost usage
   const useAIBoost = useCallback(async (): Promise<boolean> => {
     try {
       if (dailyAIBoosts <= 0) {
@@ -279,16 +373,22 @@ export const [SolunaProvider, useSoluna] = createContextHook(() => {
 
       const newBoosts = dailyAIBoosts - 1;
       setDailyAIBoosts(newBoosts);
-      await AsyncStorage.setItem(STORAGE_KEYS.AI_BOOSTS, newBoosts.toString());
+      setCachedData('ai_boosts', newBoosts);
+      
+      // Debounced save for AI boosts
+      debouncedSave('ai_boosts', newBoosts, async (data) => {
+        await AsyncStorage.setItem(STORAGE_KEYS.AI_BOOSTS, data.toString());
+      });
+      
       return true;
     } catch (err) {
       console.error('Failed to use AI boost:', err);
       setError('Failed to use AI boost.');
       return false;
     }
-  }, [dailyAIBoosts]);
+  }, [dailyAIBoosts, setCachedData, debouncedSave]);
 
-  // Update user avatar
+  // Optimized user operations
   const updateUserAvatar = useCallback(async (avatarUri: string) => {
     try {
       const updatedUser = { ...user, avatar: avatarUri };
@@ -299,7 +399,6 @@ export const [SolunaProvider, useSoluna] = createContextHook(() => {
     }
   }, [user, saveUser]);
 
-  // Update user name
   const updateUserName = useCallback(async (name: string) => {
     try {
       const updatedUser = { ...user, name: name.trim() };
@@ -310,7 +409,7 @@ export const [SolunaProvider, useSoluna] = createContextHook(() => {
     }
   }, [user, saveUser]);
 
-  // Sign out user
+  // Optimized sign out with cleanup
   const signOut = useCallback(async (): Promise<boolean> => {
     try {
       // Clear all stored data
@@ -320,6 +419,9 @@ export const [SolunaProvider, useSoluna] = createContextHook(() => {
         STORAGE_KEYS.AI_BOOSTS,
         STORAGE_KEYS.LAST_RESET,
       ]);
+      
+      // Clear cache
+      cacheRef.current.clear();
       
       // Reset state to defaults
       setUser(DEFAULT_USER);
@@ -335,12 +437,11 @@ export const [SolunaProvider, useSoluna] = createContextHook(() => {
     }
   }, []);
 
-  // Clear error
   const clearError = useCallback(() => {
     setError(null);
   }, []);
 
-  // Upgrade to premium
+  // Optimized premium upgrade
   const upgradeToPremium = useCallback(async (subscriptionId: string, customerId: string) => {
     try {
       const updatedUser = {
@@ -354,17 +455,20 @@ export const [SolunaProvider, useSoluna] = createContextHook(() => {
       // Reset AI boosts to premium amount
       const newBoosts = DAILY_AI_BOOSTS_PREMIUM;
       setDailyAIBoosts(newBoosts);
-      await AsyncStorage.setItem(STORAGE_KEYS.AI_BOOSTS, newBoosts.toString());
+      setCachedData('ai_boosts', newBoosts);
+      
+      debouncedSave('ai_boosts', newBoosts, async (data) => {
+        await AsyncStorage.setItem(STORAGE_KEYS.AI_BOOSTS, data.toString());
+      });
     } catch (err) {
       console.error('Failed to upgrade to premium:', err);
       setError('Failed to upgrade account.');
     }
-  }, [user, saveUser]);
+  }, [user, saveUser, setCachedData, debouncedSave]);
 
-  // Reset user data
+  // Optimized reset function
   const resetUserData = useCallback(async () => {
     try {
-      // Clear all stored data
       await AsyncStorage.multiRemove([
         STORAGE_KEYS.USER,
         STORAGE_KEYS.HABITS,
@@ -372,7 +476,8 @@ export const [SolunaProvider, useSoluna] = createContextHook(() => {
         STORAGE_KEYS.LAST_RESET,
       ]);
       
-      // Reset to default state
+      cacheRef.current.clear();
+      
       setUser(DEFAULT_USER);
       setHabits([]);
       setDailyAIBoosts(DAILY_AI_BOOSTS_FREE);
@@ -386,7 +491,7 @@ export const [SolunaProvider, useSoluna] = createContextHook(() => {
     }
   }, []);
 
-  // Get analytics data
+  // Highly optimized analytics with memoization
   const getAnalytics = useCallback(() => {
     const today = new Date().toDateString();
     const last7Days = Array.from({ length: 7 }, (_, i) => {
@@ -428,6 +533,16 @@ export const [SolunaProvider, useSoluna] = createContextHook(() => {
       topStreaks,
     };
   }, [habits]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+      }
+      cacheRef.current.clear();
+    };
+  }, []);
 
   return useMemo(() => ({
     // State

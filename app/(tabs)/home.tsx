@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo, memo } from 'react';
 import {
   View,
   Text,
@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Plus, Sparkles, TrendingUp, Target, Crown, Zap, X, Share2 } from 'lucide-react-native';
+import { Plus, Sparkles, TrendingUp, Target, Zap, X, Share2 } from 'lucide-react-native';
 import { useSoluna } from '@/hooks/useSolunaStore';
 import { router } from 'expo-router';
 import { colors } from '@/constants/colors';
@@ -34,7 +34,7 @@ interface ProgressRingProps {
   value: string;
 }
 
-const ProgressRing: React.FC<ProgressRingProps> = React.memo(({ progress, size, strokeWidth, color, label, value }) => {
+const ProgressRing: React.FC<ProgressRingProps> = memo(({ progress, size, strokeWidth, color, label, value }) => {
   const radius = (size - strokeWidth) / 2;
   const circumference = radius * 2 * Math.PI;
   const strokeDasharray = `${circumference} ${circumference}`;
@@ -93,6 +93,9 @@ const HabitCard: React.FC<HabitCardProps> = React.memo(({ habit, onToggle, onDel
       onPress={handleToggle}
       onLongPress={handleLongPress}
       activeOpacity={0.8}
+      accessibilityLabel={`${habit.title} habit, ${habit.isCompleted ? 'completed' : 'not completed'}`}
+      accessibilityHint={habit.isCompleted ? 'Tap to mark as incomplete' : 'Tap to mark as complete, long press to delete'}
+      accessibilityRole="button"
     >
       <View style={styles.habitCardContent}>
         <View style={styles.habitInfo}>
@@ -334,7 +337,7 @@ export default function HomeScreen() {
                 successRate: stats.today.progress,
               } as ShareStats}
               userName={user.name}
-              isPremium={user.isPremium}
+              isPremium={true}
             />
           </View>
           <View style={styles.progressContainer}>
@@ -466,7 +469,7 @@ export default function HomeScreen() {
             <QuickShare
               type="recommendation"
               userName={user.name}
-              isPremium={user.isPremium}
+              isPremium={true}
               style={styles.recommendShareButton}
             />
           </View>

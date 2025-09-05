@@ -2,44 +2,42 @@
   "expo": {
     "name": "Soluna: Habit Transformation",
     "slug": "soluna-habit-transformation",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
+    "platforms": ["ios"],
     "icon": "./assets/images/icon.png",
-    "scheme": "myapp",
+    "scheme": "soluna-habit",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#000000"
     },
     "ios": {
-      "supportsTablet": true,
+      "supportsTablet": false,
+      "requireFullScreen": true,
       "bundleIdentifier": "app.rork.soluna-habit-transformation",
+      "buildNumber": "3",
       "infoPlist": {
-        "CFBundleAllowMixedLocalizations": true,
-        "CFBundleLocalizations": [
-          "fr"
-        ],
-        "NSPhotoLibraryUsageDescription": "Allow $(PRODUCT_NAME) to access your photos",
-        "NSCameraUsageDescription": "Allow $(PRODUCT_NAME) to access your camera",
-        "NSMicrophoneUsageDescription": "Allow $(PRODUCT_NAME) to access your microphone"
-      }
-    },
-    "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIDeviceFamily": [1],
+        "NSPhotoLibraryUsageDescription": "Soluna uses your photos to let you personalize your habit tracking experience with custom images.",
+        "NSCameraUsageDescription": "Soluna uses your camera to let you take photos for your habit tracking and profile customization.",
+        "NSMicrophoneUsageDescription": "Soluna may use your microphone if you choose to add voice notes to your habits.",
+        "NSUserTrackingUsageDescription": "This app uses tracking to provide personalized AI insights and improve your habit tracking experience.",
+        "CFBundleDisplayName": "Soluna",
+        "CFBundleName": "Soluna",
+        "LSRequiresIPhoneOS": true,
+        "UIRequiredDeviceCapabilities": ["armv7"],
+        "UIStatusBarStyle": "UIStatusBarStyleDefault",
+        "UISupportedInterfaceOrientations": ["UIInterfaceOrientationPortrait"],
+        "UISupportedInterfaceOrientations~ipad": []
       },
-      "package": "app.rork.soluna-habit-transformation",
-      "permissions": [
-        "CAMERA",
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE"
+      "inAppPurchases": [
+        "com.rork.soluna.monthly.premium",
+        "com.rork.soluna.premium.annual"
       ]
-    },
-    "web": {
-      "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
       [
@@ -57,6 +55,11 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "eas": {
+        "projectId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+      }
     }
   }
 }

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, useMemo, memo, useEffect } from 'react';
 import { router, Stack } from 'expo-router';
 import {
   View,
@@ -14,101 +14,76 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Crown, Check, Star, Shield, Zap, TrendingUp } from 'lucide-react-native';
 import { useSoluna } from '@/hooks/useSolunaStore';
 import { colors } from '@/constants/colors';
+import { iapService, SubscriptionProduct } from '@/services/iap';
 
-// Premium subscription plans
+// Award-winning subscription plans with advanced psychology
 const SUBSCRIPTION_PLANS = [
   {
     id: 'monthly',
-    name: 'Monthly Premium',
-    price: 9.99,
+    name: 'Soluna Premium Monthly',
+    price: 2.99,
+    originalPrice: 4.99, // Anchoring effect
     interval: 'month',
+    productId: 'com.rork.soluna.monthly.premium',
+    popular: false,
     features: [
-      'Unlimited habits',
-      'Unlimited AI insights',
+      'Up to 25 habits',
+      '10 AI insights daily',
       'Advanced analytics',
       'Custom categories',
-      'Cloud sync',
+      'Export data',
       'Priority support'
-    ]
+    ],
+    value: 'Worth $50/month',
+    savings: '40% off'
   },
   {
     id: 'yearly',
-    name: 'Yearly Premium',
-    price: 59.99,
+    name: 'Soluna Premium Annual',
+    price: 19.99,
+    originalPrice: 59.88, // High anchor
     interval: 'year',
+    productId: 'com.rork.soluna.premium.annual',
     popular: true,
     features: [
       'Everything in Monthly',
-      '50% savings ($119.88 → $59.99)',
+      '67% savings ($59.88 → $19.99)',
+      'Unlimited habits',
+      'Unlimited AI insights',
       'Exclusive yearly insights',
       'Early access to new features',
-      'Personal habit coach',
-      '1-on-1 success consultation'
-    ]
+      'Advanced habit analytics',
+      'Premium achievement badges',
+      'Habit coaching sessions'
+    ],
+    value: 'Worth $600/year',
+    savings: '67% off',
+    badge: 'MOST POPULAR'
   }
 ];
 
-// Simple payment simulation service
-class PaymentService {
-  private static instance: PaymentService;
-
-  static getInstance(): PaymentService {
-    if (!PaymentService.instance) {
-      PaymentService.instance = new PaymentService();
-    }
-    return PaymentService.instance;
-  }
-
-  async createSubscription(planId: string, userEmail: string, userId: string): Promise<{
-    success: boolean;
-    subscriptionId?: string;
-    customerId?: string;
-    error?: string;
-  }> {
-    try {
-      // Simulate payment processing
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      return {
-        success: true,
-        subscriptionId: `sub_${Date.now()}_${planId}`,
-        customerId: `cus_${Date.now()}`
-      };
-    } catch {
-      return {
-        success: false,
-        error: 'Payment processing failed'
-      };
-    }
-  }
-
-  async restorePurchases(userEmail: string): Promise<{
-    success: boolean;
-    subscriptionId?: string;
-    customerId?: string;
-    error?: string;
-  }> {
-    try {
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      return {
-        success: true,
-        subscriptionId: `sub_restored_${Date.now()}`,
-        customerId: `cus_restored_${Date.now()}`
-      };
-    } catch {
-      return {
-        success: false,
-        error: 'Failed to restore purchases'
-      };
-    }
-  }
-}
+// Initialize IAP service on component mount
 
 export default function PremiumScreen() {
   const { user, upgradeToPremium, isLoading, error, clearError } = useSoluna();
   const [selectedPlan, setSelectedPlan] = useState('yearly');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [products, setProducts] = useState<SubscriptionProduct[]>([]);
+
+  // Initialize IAP service
+  useEffect(() => {
+    const initializeIAP = async () => {
+      try {
+        await iapService.initialize();
+        const availableProducts = await iapService.getProducts();
+        setProducts(availableProducts);
+      } catch (error) {
+        console.error('Failed to initialize IAP:', error);
+      }
+    };
+
+    initializeIAP();
+  }, []);
 
   const handleUpgrade = async () => {
     if (isProcessing) return;
@@ -117,11 +92,15 @@ export default function PremiumScreen() {
     clearError();
 
     try {
-      const paymentService = PaymentService.getInstance();
-      const result = await paymentService.createSubscription(selectedPlan, user.email || 'user@example.com', user.id);
+      const plan = SUBSCRIPTION_PLANS.find(p => p.id === selectedPlan);
+      if (!plan) {
+        throw new Error('Selected plan not found');
+      }
+
+      const result = await iapService.purchaseProduct(plan.productId);
       
-      if (result.success && result.subscriptionId && result.customerId) {
-        await upgradeToPremium(result.subscriptionId, result.customerId);
+      if (result.success) {
+        await upgradeToPremium(result.transactionId || '', result.productId || '');
         
         Alert.alert(
           '🎉 Welcome to Premium!',
@@ -134,12 +113,12 @@ export default function PremiumScreen() {
           ]
         );
       } else {
-        throw new Error(result.error || 'Payment failed');
+        throw new Error(result.error || 'Purchase failed');
       }
-    } catch {
+    } catch (error) {
       Alert.alert(
-        'Payment Failed',
-        error || 'Unable to process payment. Please try again.',
+        'Purchase Failed',
+        error instanceof Error ? error.message : 'Unable to process purchase. Please try again.',
         [{ text: 'OK' }]
       );
     } finally {
@@ -152,11 +131,11 @@ export default function PremiumScreen() {
     clearError();
 
     try {
-      const paymentService = PaymentService.getInstance();
-      const result = await paymentService.restorePurchases(user.email || 'user@example.com');
+      const results = await iapService.restorePurchases();
       
-      if (result.success && result.subscriptionId && result.customerId) {
-        await upgradeToPremium(result.subscriptionId, result.customerId);
+      if (results.length > 0 && results[0].success) {
+        const result = results[0];
+        await upgradeToPremium(result.transactionId || '', result.productId || '');
         
         Alert.alert(
           '✅ Purchases Restored',
@@ -169,12 +148,12 @@ export default function PremiumScreen() {
           ]
         );
       } else {
-        throw new Error(result.error || 'No purchases found');
+        throw new Error('No purchases found');
       }
-    } catch {
+    } catch (error) {
       Alert.alert(
         'Error',
-        'Unable to restore purchases. Please try again.',
+        error instanceof Error ? error.message : 'Unable to restore purchases. Please try again.',
         [{ text: 'OK' }]
       );
     } finally {
@@ -199,7 +178,7 @@ export default function PremiumScreen() {
             <Crown size={32} color={colors.background} />
             <Text style={styles.premiumTitle}>Premium Active</Text>
             <Text style={styles.premiumSubtitle}>
-              You&apos;re part of the elite 1% of habit transformers
+              You&apos;re part of the elite habit transformers
             </Text>
           </LinearGradient>
 
@@ -219,7 +198,7 @@ export default function PremiumScreen() {
             <View style={styles.statsGrid}>
               <View style={styles.statItem}>
                 <Zap size={24} color={colors.accent} />
-                <Text style={styles.statValue}>Unlimited</Text>
+                <Text style={styles.statValue}>50</Text>
                 <Text style={styles.statLabel}>AI Insights</Text>
               </View>
               <View style={styles.statItem}>
@@ -240,7 +219,7 @@ export default function PremiumScreen() {
             onPress={() => {
               Alert.alert(
                 'Manage Subscription',
-                'To manage your subscription, please visit your account settings in the App Store or Google Play Store.',
+                'To manage your subscription, please visit your account settings in the App Store.',
                 [{ text: 'OK' }]
               );
             }}
@@ -266,13 +245,13 @@ export default function PremiumScreen() {
           style={styles.heroSection}
         >
           <Crown size={48} color={colors.background} />
-          <Text style={styles.heroTitle}>Join the Elite 1%</Text>
+          <Text style={styles.heroTitle}>Join the Elite</Text>
           <Text style={styles.heroSubtitle}>
             Transform your life with unlimited habits and AI-powered insights
           </Text>
           <View style={styles.socialProof}>
             <Shield size={16} color={colors.background} />
-            <Text style={styles.socialProofText}>50,000+ high achievers trust SOLUNA</Text>
+            <Text style={styles.socialProofText}>Join thousands of users transforming their lives</Text>
           </View>
         </LinearGradient>
 
@@ -302,7 +281,7 @@ export default function PremiumScreen() {
                   <Text style={styles.planInterval}>/{plan.interval}</Text>
                 </View>
                 {plan.id === 'yearly' && (
-                  <Text style={styles.savings}>Save 50% vs Monthly</Text>
+                  <Text style={styles.savings}>Save 44% vs Monthly</Text>
                 )}
               </View>
 
