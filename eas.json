@@ -1,32 +1,19 @@
 {
   "cli": {
-    "version": ">= 16.18.0"
+    "appVersionSource": "remote"
   },
   "build": {
     "development": {
-      "ios": {
-        "simulator": true,
-        "autoIncrement": "buildNumber"
-      },
-      "env": {
-        "NODE_ENV": "development"
-      }
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "preview": {
+      "distribution": "internal"
     },
     "production": {
+      "distribution": "store",
       "ios": {
-        "simulator": false,
-        "autoIncrement": "buildNumber"
-      },
-      "env": {
-        "NODE_ENV": "production"
-      }
-    }
-  },
-  "submit": {
-    "production": {
-      "ios": {
-        "appleId": "abrahamtrueba@icloud.com",
-        "bundleIdentifier": "app.rork.soluna-habit-transformation"
+        "buildConfiguration": "Release"
       }
     }
   }
