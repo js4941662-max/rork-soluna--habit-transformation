@@ -2,7 +2,7 @@
   "expo": {
     "name": "Soluna: Habit Transformation",
     "slug": "soluna-habit-transformation",
-    "version": "1.0.1",
+    "version": "1.0.2",
     "orientation": "portrait",
     "platforms": ["ios"],
     "icon": "./assets/images/icon.png",
@@ -18,7 +18,7 @@
       "supportsTablet": false,
       "requireFullScreen": true,
       "bundleIdentifier": "app.rork.soluna-habit-transformation",
-      "buildNumber": "3",
+      "buildNumber": "4",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "UIDeviceFamily": [1],
@@ -32,7 +32,8 @@
         "UIRequiredDeviceCapabilities": ["armv7"],
         "UIStatusBarStyle": "UIStatusBarStyleDefault",
         "UISupportedInterfaceOrientations": ["UIInterfaceOrientationPortrait"],
-        "UISupportedInterfaceOrientations~ipad": []
+        "UISupportedInterfaceOrientations~ipad": [],
+        "SKPaymentQueue": "SKPaymentQueue"
       },
       "inAppPurchases": [
         "com.rork.soluna.monthly.premium",

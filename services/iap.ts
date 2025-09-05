@@ -99,9 +99,38 @@ class IAPService {
           transactionId: result.transactionId,
         };
       } else {
+        // Handle specific error codes
+        let errorMessage = `Purchase failed with code: ${result.responseCode}`;
+        
+        switch (result.responseCode) {
+          case InAppPurchases.IAPResponseCode.USER_CANCELED:
+            errorMessage = 'Purchase was cancelled';
+            break;
+          case InAppPurchases.IAPResponseCode.PAYMENT_INVALID:
+            errorMessage = 'Payment method is invalid';
+            break;
+          case InAppPurchases.IAPResponseCode.PAYMENT_NOT_ALLOWED:
+            errorMessage = 'Payment not allowed on this device';
+            break;
+          case InAppPurchases.IAPResponseCode.STORE_PRODUCT_NOT_AVAILABLE:
+            errorMessage = 'Product not available for purchase';
+            break;
+          case InAppPurchases.IAPResponseCode.CLOUD_SERVICE_PERMISSION_DENIED:
+            errorMessage = 'Cloud service permission denied';
+            break;
+          case InAppPurchases.IAPResponseCode.CLOUD_SERVICE_NETWORK_CONNECTION_FAILED:
+            errorMessage = 'Network connection failed';
+            break;
+          case InAppPurchases.IAPResponseCode.CLOUD_SERVICE_REVOKED:
+            errorMessage = 'Cloud service access revoked';
+            break;
+          default:
+            errorMessage = `Purchase failed with code: ${result.responseCode}`;
+        }
+        
         return {
           success: false,
-          error: `Purchase failed with code: ${result.responseCode}`,
+          error: errorMessage,
         };
       }
     } catch (error) {
@@ -123,7 +152,7 @@ class IAPService {
         return [];
       }
 
-      const result = await InAppPurchases.getPurchaseHistoryAsync();
+      const result = await InAppPurchases.getPurchaseHistoryAsync(true);
       const purchases: PurchaseResult[] = [];
 
       if (result.responseCode === InAppPurchases.IAPResponseCode.OK) {
@@ -135,6 +164,8 @@ class IAPService {
             transactionId: purchase.transactionId,
           });
         }
+      } else {
+        console.error('Failed to restore purchases:', result.responseCode);
       }
 
       return purchases;
