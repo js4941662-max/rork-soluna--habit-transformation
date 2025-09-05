@@ -25,7 +25,6 @@
         "NSPhotoLibraryUsageDescription": "Soluna uses your photos to let you personalize your habit tracking experience with custom images.",
         "NSCameraUsageDescription": "Soluna uses your camera to let you take photos for your habit tracking and profile customization.",
         "NSMicrophoneUsageDescription": "Soluna may use your microphone if you choose to add voice notes to your habits.",
-        "NSUserTrackingUsageDescription": "This app uses tracking to provide personalized AI insights and improve your habit tracking experience.",
         "CFBundleDisplayName": "Soluna",
         "CFBundleName": "Soluna",
         "LSRequiresIPhoneOS": true,
