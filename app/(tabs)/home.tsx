@@ -8,13 +8,11 @@ import {
   Dimensions,
   Alert,
   RefreshControl,
-  Modal,
   TextInput,
-  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Plus, Sparkles, TrendingUp, Target, Zap, X, Share2 } from 'lucide-react-native';
+import { Plus, Sparkles, TrendingUp, Target, Share2 } from 'lucide-react-native';
 import { useSoluna } from '@/hooks/useSolunaStore';
 import { router } from 'expo-router';
 import { colors } from '@/constants/colors';
@@ -36,9 +34,6 @@ interface ProgressRingProps {
 
 const ProgressRing: React.FC<ProgressRingProps> = memo(({ progress, size, strokeWidth, color, label, value }) => {
   const radius = (size - strokeWidth) / 2;
-  const circumference = radius * 2 * Math.PI;
-  const strokeDasharray = `${circumference} ${circumference}`;
-  const strokeDashoffset = circumference - (progress / 100) * circumference;
 
   return (
     <View style={[styles.progressRing, { width: size, height: size }]}>
@@ -50,6 +45,8 @@ const ProgressRing: React.FC<ProgressRingProps> = memo(({ progress, size, stroke
   );
 });
 
+ProgressRing.displayName = 'ProgressRing';
+
 interface HabitCardProps {
   habit: any;
   onToggle: (id: string) => void;
@@ -57,8 +54,7 @@ interface HabitCardProps {
 }
 
 const HabitCard: React.FC<HabitCardProps> = React.memo(({ habit, onToggle, onDelete }) => {
-  const { user } = useSoluna();
-  const [showShareOptions, setShowShareOptions] = useState(false);
+  const [showShareOptions] = useState(false);
 
   const handleLongPress = useCallback(() => {
     Alert.alert(
@@ -129,6 +125,8 @@ const HabitCard: React.FC<HabitCardProps> = React.memo(({ habit, onToggle, onDel
     </TouchableOpacity>
   );
 });
+
+HabitCard.displayName = 'HabitCard';
 
 interface AddHabitModalProps {
   visible: boolean;
@@ -229,6 +227,8 @@ const AddHabitModal: React.FC<AddHabitModalProps> = React.memo(({ visible, onClo
   );
 });
 
+AddHabitModal.displayName = 'AddHabitModal';
+
 export default function HomeScreen() {
   const {
     user,
@@ -265,12 +265,12 @@ export default function HomeScreen() {
     };
   }, [habits]);
 
-  const handleAIBoost = useCallback(async () => {
+  const handleAIBoost = async () => {
     const success = await useAIBoost();
     if (success) {
       router.push('/(tabs)/insights');
     }
-  }, [useAIBoost]);
+  };
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -373,7 +373,7 @@ export default function HomeScreen() {
           colors={[colors.accent + '20', colors.primary + '20']}
           style={styles.wisdomCard}
         >
-          <Text style={styles.wisdomText}>"{wisdomQuote.text}"</Text>
+          <Text style={styles.wisdomText}>&ldquo;{wisdomQuote.text}&rdquo;</Text>
           <Text style={styles.wisdomAuthor}>— {wisdomQuote.author}</Text>
         </LinearGradient>
 

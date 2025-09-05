@@ -28,9 +28,9 @@ import Colors from '@/constants/colors';
 export default function InsightsScreen() {
   const { habits, user, useAIBoost, dailyAIBoosts } = useSoluna();
   const [isGenerating, setIsGenerating] = useState(false);
-  const [insights, setInsights] = useState<string[]>([]);
+  const [insights] = useState<string[]>([]);
 
-  const handleGenerateInsight = useCallback(async () => {
+  const handleGenerateInsight = async () => {
     if (isGenerating) return;
 
     const canUseBoost = await useAIBoost();
@@ -42,12 +42,12 @@ export default function InsightsScreen() {
       await new Promise(resolve => setTimeout(resolve, 2000));
       const mockInsight = `Based on your ${habits.length} habits, you're showing strong consistency patterns. Your best performing habit has a ${Math.max(...habits.map(h => h.streak), 0)}-day streak!`;
       setInsights(prev => [mockInsight, ...prev.slice(0, 4)]);
-    } catch (error) {
+    } catch {
       Alert.alert('Error', 'Failed to generate insight. Please try again.');
     } finally {
       setIsGenerating(false);
     }
-  }, [habits, user, useAIBoost, isGenerating]);
+  };
 
   const handleUpgradePress = () => {
     router.push('/premium');

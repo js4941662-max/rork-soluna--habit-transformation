@@ -17,16 +17,32 @@ export interface PurchaseResult {
   productId?: string;
   transactionId?: string;
   error?: string;
+  receipt?: string;
+}
+
+export interface ReceiptValidationResult {
+  valid: boolean;
+  isSandbox: boolean;
+  productId?: string;
+  expiresDate?: Date;
+  error?: string;
 }
 
 class IAPService {
   private isInitialized = false;
   private products: SubscriptionProduct[] = [];
+  private purchaseUpdateListener: any = null;
 
   // Product IDs matching App Store Connect
   private readonly PRODUCT_IDS = {
     MONTHLY: 'com.rork.soluna.monthly.premium',
     ANNUAL: 'com.rork.soluna.premium.annual',
+  };
+
+  // App Store receipt validation URLs
+  private readonly RECEIPT_VALIDATION_URLS = {
+    PRODUCTION: 'https://buy.itunes.apple.com/verifyReceipt',
+    SANDBOX: 'https://sandbox.itunes.apple.com/verifyReceipt',
   };
 
   async initialize(): Promise<boolean> {
@@ -40,6 +56,9 @@ class IAPService {
 
       // Initialize the IAP service
       await InAppPurchases.connectAsync();
+      
+      // Set up purchase update listener
+      this.purchaseUpdateListener = InAppPurchases.setPurchaseListener(this.handlePurchaseUpdate.bind(this));
       
       // Get available products
       const products = await InAppPurchases.getProductsAsync([
@@ -63,6 +82,27 @@ class IAPService {
     } catch (error) {
       console.error('Failed to initialize IAP:', error);
       return false;
+    }
+  }
+
+  private async handlePurchaseUpdate(purchase: any): Promise<void> {
+    try {
+      console.log('Purchase update received:', purchase);
+      
+      if (purchase.responseCode === InAppPurchases.IAPResponseCode.OK) {
+        // Validate receipt
+        const validation = await this.validateReceipt(purchase.receiptData);
+        
+        if (validation.valid) {
+          // Store the purchase
+          await this.storePurchase(purchase.productId, purchase.transactionId, purchase.receiptData);
+          
+          // Update user premium status
+          await this.updateUserPremiumStatus(purchase.productId, validation.expiresDate);
+        }
+      }
+    } catch (error) {
+      console.error('Error handling purchase update:', error);
     }
   }
 
@@ -90,14 +130,28 @@ class IAPService {
       const result = await InAppPurchases.purchaseItemAsync(productId);
       
       if (result.responseCode === InAppPurchases.IAPResponseCode.OK) {
-        // Store purchase locally
-        await this.storePurchase(productId, result.transactionId);
+        // Validate receipt
+        const validation = await this.validateReceipt(result.receiptData);
         
-        return {
-          success: true,
-          productId,
-          transactionId: result.transactionId,
-        };
+        if (validation.valid) {
+          // Store purchase locally
+          await this.storePurchase(productId, result.transactionId, result.receiptData);
+          
+          // Update user premium status
+          await this.updateUserPremiumStatus(productId, validation.expiresDate);
+          
+          return {
+            success: true,
+            productId,
+            transactionId: result.transactionId,
+            receipt: result.receiptData,
+          };
+        } else {
+          return {
+            success: false,
+            error: validation.error || 'Receipt validation failed',
+          };
+        }
       } else {
         // Handle specific error codes
         let errorMessage = `Purchase failed with code: ${result.responseCode}`;
@@ -142,6 +196,91 @@ class IAPService {
     }
   }
 
+  async validateReceipt(receiptData: string): Promise<ReceiptValidationResult> {
+    try {
+      // First try production validation
+      let validation = await this.validateReceiptWithApple(receiptData, this.RECEIPT_VALIDATION_URLS.PRODUCTION);
+      
+      // If production validation fails with sandbox error, try sandbox
+      if (!validation.valid && validation.error?.includes('sandbox')) {
+        console.log('Production validation failed, trying sandbox...');
+        validation = await this.validateReceiptWithApple(receiptData, this.RECEIPT_VALIDATION_URLS.SANDBOX);
+        validation.isSandbox = true;
+      }
+      
+      return validation;
+    } catch (error) {
+      console.error('Receipt validation error:', error);
+      return {
+        valid: false,
+        isSandbox: false,
+        error: error instanceof Error ? error.message : 'Receipt validation failed',
+      };
+    }
+  }
+
+  private async validateReceiptWithApple(receiptData: string, url: string): Promise<ReceiptValidationResult> {
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          'receipt-data': receiptData,
+          'password': '', // No shared secret for auto-renewable subscriptions
+          'exclude-old-transactions': true,
+        }),
+      });
+
+      const result = await response.json();
+      
+      if (result.status === 0) {
+        // Valid receipt
+        const latestReceiptInfo = result.latest_receipt_info || result.receipt?.in_app || [];
+        const latestTransaction = latestReceiptInfo[latestReceiptInfo.length - 1];
+        
+        if (latestTransaction) {
+          const expiresDate = new Date(parseInt(latestTransaction.expires_date_ms));
+          const now = new Date();
+          
+          return {
+            valid: true,
+            isSandbox: false,
+            productId: latestTransaction.product_id,
+            expiresDate: expiresDate > now ? expiresDate : undefined,
+          };
+        }
+      } else if (result.status === 21007) {
+        // Sandbox receipt used in production
+        return {
+          valid: false,
+          isSandbox: true,
+          error: 'Sandbox receipt used in production',
+        };
+      } else {
+        return {
+          valid: false,
+          isSandbox: false,
+          error: `Receipt validation failed with status: ${result.status}`,
+        };
+      }
+      
+      return {
+        valid: false,
+        isSandbox: false,
+        error: 'Invalid receipt format',
+      };
+    } catch (error) {
+      console.error('Apple receipt validation error:', error);
+      return {
+        valid: false,
+        isSandbox: false,
+        error: error instanceof Error ? error.message : 'Network error during validation',
+      };
+    }
+  }
+
   async restorePurchases(): Promise<PurchaseResult[]> {
     try {
       if (!this.isInitialized) {
@@ -157,12 +296,20 @@ class IAPService {
 
       if (result.responseCode === InAppPurchases.IAPResponseCode.OK) {
         for (const purchase of result.results || []) {
-          await this.storePurchase(purchase.productId, purchase.transactionId);
-          purchases.push({
-            success: true,
-            productId: purchase.productId,
-            transactionId: purchase.transactionId,
-          });
+          // Validate each receipt
+          const validation = await this.validateReceipt(purchase.receiptData);
+          
+          if (validation.valid) {
+            await this.storePurchase(purchase.productId, purchase.transactionId, purchase.receiptData);
+            await this.updateUserPremiumStatus(purchase.productId, validation.expiresDate);
+            
+            purchases.push({
+              success: true,
+              productId: purchase.productId,
+              transactionId: purchase.transactionId,
+              receipt: purchase.receiptData,
+            });
+          }
         }
       } else {
         console.error('Failed to restore purchases:', result.responseCode);
@@ -181,16 +328,13 @@ class IAPService {
       if (!storedPurchases) return false;
 
       const purchases = JSON.parse(storedPurchases);
-      const now = Date.now();
+      const now = new Date();
 
       // Check if any subscription is still valid
       for (const purchase of purchases) {
-        if (purchase.productId === this.PRODUCT_IDS.MONTHLY) {
-          const expiryTime = purchase.timestamp + (30 * 24 * 60 * 60 * 1000); // 30 days
-          if (now < expiryTime) return true;
-        } else if (purchase.productId === this.PRODUCT_IDS.ANNUAL) {
-          const expiryTime = purchase.timestamp + (365 * 24 * 60 * 60 * 1000); // 365 days
-          if (now < expiryTime) return true;
+        if (purchase.expiresDate) {
+          const expiryDate = new Date(purchase.expiresDate);
+          if (now < expiryDate) return true;
         }
       }
 
@@ -201,20 +345,42 @@ class IAPService {
     }
   }
 
-  private async storePurchase(productId: string, transactionId: string): Promise<void> {
+  private async storePurchase(productId: string, transactionId: string, receiptData: string): Promise<void> {
     try {
       const storedPurchases = await AsyncStorage.getItem('user_purchases');
       const purchases = storedPurchases ? JSON.parse(storedPurchases) : [];
       
-      purchases.push({
+      // Remove any existing purchases for this product
+      const filteredPurchases = purchases.filter((p: any) => p.productId !== productId);
+      
+      // Add new purchase
+      filteredPurchases.push({
         productId,
         transactionId,
+        receiptData,
         timestamp: Date.now(),
       });
 
-      await AsyncStorage.setItem('user_purchases', JSON.stringify(purchases));
+      await AsyncStorage.setItem('user_purchases', JSON.stringify(filteredPurchases));
     } catch (error) {
       console.error('Error storing purchase:', error);
+    }
+  }
+
+  private async updateUserPremiumStatus(productId: string, expiresDate?: Date): Promise<void> {
+    try {
+      // Update user premium status in the app state
+      const userData = await AsyncStorage.getItem('soluna_user_v4');
+      if (userData) {
+        const user = JSON.parse(userData);
+        user.isPremium = true;
+        user.subscriptionId = productId;
+        user.premiumExpiresAt = expiresDate?.toISOString();
+        
+        await AsyncStorage.setItem('soluna_user_v4', JSON.stringify(user));
+      }
+    } catch (error) {
+      console.error('Error updating user premium status:', error);
     }
   }
 
@@ -249,6 +415,11 @@ class IAPService {
 
   async disconnect(): Promise<void> {
     try {
+      if (this.purchaseUpdateListener) {
+        this.purchaseUpdateListener.remove();
+        this.purchaseUpdateListener = null;
+      }
+      
       if (this.isInitialized) {
         await InAppPurchases.disconnectAsync();
         this.isInitialized = false;
@@ -261,4 +432,3 @@ class IAPService {
 
 export const iapService = new IAPService();
 export default iapService;
-

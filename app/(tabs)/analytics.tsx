@@ -1,4 +1,4 @@
-import React, { useMemo, memo, useCallback } from 'react';
+import React, { useMemo } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { LineChart, BarChart, PieChart } from 'react-native-chart-kit';
-import { Trophy, TrendingUp, Target, Calendar, Award, Flame, Share2 } from 'lucide-react-native';
+import { Trophy, TrendingUp, Target, Award, Flame } from 'lucide-react-native';
 import { useSoluna } from '@/hooks/useSolunaStore';
 import Colors from '@/constants/colors';
 import { QuickShare } from '@/components/ShareModal';

@@ -8,15 +8,12 @@ import {
   Alert,
   Image,
   SafeAreaView,
-  Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import {
   User,
   Crown,
-  Camera,
-  Settings,
   Bell,
   Shield,
   LogOut,
@@ -82,28 +79,6 @@ export default function ProfileScreen() {
     },
   ];
 
-  const handleImagePicker = useCallback(async () => {
-    try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission Required', 'Please grant camera roll permissions to upload a profile photo.');
-        return;
-      }
-
-      Alert.alert(
-        'Select Photo',
-        'Choose how you\'d like to select your profile photo',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Camera', onPress: () => openCamera() },
-          { text: 'Photo Library', onPress: () => openLibrary() },
-        ]
-      );
-    } catch {
-      Alert.alert('Error', 'Failed to request permissions');
-    }
-  }, []);
-
   const openCamera = async () => {
     try {
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
@@ -122,7 +97,6 @@ export default function ProfileScreen() {
 
       if (!result.canceled && result.assets[0]) {
         await updateUserAvatar(result.assets[0].uri);
-        Alert.alert('Success', 'Profile photo updated successfully!');
       }
     } catch {
       Alert.alert('Error', 'Failed to take photo');
@@ -133,6 +107,12 @@ export default function ProfileScreen() {
 
   const openLibrary = async () => {
     try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Please grant photo library permissions to select a photo.');
+        return;
+      }
+
       setIsUploading(true);
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
@@ -143,7 +123,6 @@ export default function ProfileScreen() {
 
       if (!result.canceled && result.assets[0]) {
         await updateUserAvatar(result.assets[0].uri);
-        Alert.alert('Success', 'Profile photo updated successfully!');
       }
     } catch {
       Alert.alert('Error', 'Failed to select photo');
@@ -151,6 +130,28 @@ export default function ProfileScreen() {
       setIsUploading(false);
     }
   };
+
+  const handleImagePicker = useCallback(async () => {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission Required', 'Please grant camera roll permissions to upload a profile photo.');
+        return;
+      }
+
+      Alert.alert(
+        'Select Photo',
+        'Choose how you\'d like to select your profile photo',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Camera', onPress: openCamera },
+          { text: 'Photo Library', onPress: openLibrary },
+        ]
+      );
+    } catch {
+      Alert.alert('Error', 'Failed to request permissions');
+    }
+  }, [openCamera, openLibrary]);
 
   const handleSignOut = useCallback(() => {
     Alert.alert(

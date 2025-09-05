@@ -1,30 +1,24 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   Animated,
   Dimensions,
-  Platform,
   StatusBar,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { 
   Crown, 
-  Sparkles, 
   Trophy, 
   Star, 
   Zap, 
-  Heart,
   Target,
-  TrendingUp,
-  Award,
-  Gem
+  TrendingUp
 } from 'lucide-react-native';
 import { colors } from '@/constants/colors';
 
-const { width, height } = Dimensions.get('window');
+const { width } = Dimensions.get('window');
 
 // Award-winning micro-interactions
 export const MicroInteractions = {
@@ -53,8 +47,8 @@ export const MicroInteractions = {
 
 // Premium onboarding flow
 export const PremiumOnboarding = () => {
-  const [currentStep, setCurrentStep] = useState(0);
-  const [animations, setAnimations] = useState({
+  const [currentStep] = useState(0);
+  const [animations] = useState({
     fadeIn: new Animated.Value(0),
     slideUp: new Animated.Value(50),
     scale: new Animated.Value(0.8),
@@ -106,7 +100,7 @@ export const PremiumOnboarding = () => {
         useNativeDriver: true,
       }),
     ]).start();
-  }, [currentStep]);
+  }, [animations.fadeIn, animations.slideUp, animations.scale]);
 
   return (
     <View style={styles.onboardingContainer}>
@@ -280,7 +274,7 @@ export const SocialProof = () => {
               </View>
             </View>
             <Text style={styles.testimonialText}>
-              "{testimonial.text}"
+              &ldquo;{testimonial.text}&rdquo;
             </Text>
           </View>
         ))}

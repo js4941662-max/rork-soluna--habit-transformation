@@ -3,9 +3,9 @@
   "main": "expo-router/entry",
   "version": "1.0.2",
   "scripts": {
-    "start": "bunx rork start -p ae5y82x91agpmuw75fgw4 --tunnel",
-    "start-web": "bunx rork start -p ae5y82x91agpmuw75fgw4 --web --tunnel",
-    "start-web-dev": "DEBUG=expo* bunx rork start -p ae5y82x91agpmuw75fgw4 --web --tunnel",
+    "start": "expo start",
+    "start-web": "expo start --web",
+    "start-web-dev": "DEBUG=expo* expo start --web",
     "lint": "expo lint"
   },
   "dependencies": {
