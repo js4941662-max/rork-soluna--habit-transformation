@@ -20,7 +20,6 @@
       "supportsTablet": false,
       "requireFullScreen": true,
       "bundleIdentifier": "app.rork.soluna-habit-transformation",
-      "buildNumber": "4",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "UIDeviceFamily": [
@@ -29,6 +28,7 @@
         "NSPhotoLibraryUsageDescription": "Soluna uses your photos to let you personalize your habit tracking experience with custom images.",
         "NSCameraUsageDescription": "Soluna uses your camera to let you take photos for your habit tracking and profile customization.",
         "NSMicrophoneUsageDescription": "Soluna may use your microphone if you choose to add voice notes to your habits.",
+        "NSUserTrackingUsageDescription": "This app uses tracking to provide personalized AI insights and improve your habit tracking experience.",
         "CFBundleDisplayName": "Soluna",
         "CFBundleName": "Soluna",
         "LSRequiresIPhoneOS": true,
@@ -48,7 +48,18 @@
       ]
     },
     "plugins": [
-      "expo-router"
+      [
+        "expo-router",
+        {
+          "origin": "https://rork.com/"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "The app accesses your photos to let you share them with your friends."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
@@ -56,6 +67,9 @@
     "extra": {
       "eas": {
         "projectId": "b1c09976-535e-4d87-9deb-7a6db7204314"
+      },
+      "router": {
+        "origin": "https://rork.com/"
       }
     },
     "owner": "abrahamtrueba98"
