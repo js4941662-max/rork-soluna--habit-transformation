@@ -46,9 +46,11 @@
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
+    "@expo/schema-utils": "^0.1.0",
     "@types/react": "~19.0.10",
     "eslint": "^9.31.0",
     "eslint-config-expo": "^9.2.0",
+    "metro": "^0.80.0",
     "typescript": "~5.8.3"
   },
   "private": true
