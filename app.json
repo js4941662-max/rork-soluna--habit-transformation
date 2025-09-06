@@ -4,7 +4,9 @@
     "slug": "soluna-habit-transformation",
     "version": "1.0.2",
     "orientation": "portrait",
-    "platforms": ["ios"],
+    "platforms": [
+      "ios"
+    ],
     "icon": "./assets/images/icon.png",
     "scheme": "soluna-habit",
     "userInterfaceStyle": "automatic",
@@ -21,16 +23,22 @@
       "buildNumber": "4",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "UIDeviceFamily": [1],
+        "UIDeviceFamily": [
+          1
+        ],
         "NSPhotoLibraryUsageDescription": "Soluna uses your photos to let you personalize your habit tracking experience with custom images.",
         "NSCameraUsageDescription": "Soluna uses your camera to let you take photos for your habit tracking and profile customization.",
         "NSMicrophoneUsageDescription": "Soluna may use your microphone if you choose to add voice notes to your habits.",
         "CFBundleDisplayName": "Soluna",
         "CFBundleName": "Soluna",
         "LSRequiresIPhoneOS": true,
-        "UIRequiredDeviceCapabilities": ["armv7"],
+        "UIRequiredDeviceCapabilities": [
+          "armv7"
+        ],
         "UIStatusBarStyle": "UIStatusBarStyleDefault",
-        "UISupportedInterfaceOrientations": ["UIInterfaceOrientationPortrait"],
+        "UISupportedInterfaceOrientations": [
+          "UIInterfaceOrientationPortrait"
+        ],
         "UISupportedInterfaceOrientations~ipad": [],
         "SKPaymentQueue": "SKPaymentQueue"
       },
@@ -47,7 +55,9 @@
     },
     "extra": {
       "eas": {
+        "projectId": "b1c09976-535e-4d87-9deb-7a6db7204314"
       }
-    }
+    },
+    "owner": "abrahamtrueba98"
   }
 }
